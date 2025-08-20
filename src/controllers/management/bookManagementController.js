@@ -1,10 +1,18 @@
 const Book = require('../../models/Book');
 
+/**
+ * Adds a new book to the database.
+ * Validates required fields.
+ * Ensures no other book with the same title exists.
+ * Saves book with the authenticated user as creator.
+ */
+
 exports.addBook = async (req, res) => {
   try {
     const { title, author, publishedYear, genre } = req.body;
     const createdBy = req.user._id;
 
+    // Validate all input presence
     if (!title || !author || !publishedYear || !genre) {
       return res.status(200).json({
         success: false,
@@ -23,6 +31,7 @@ exports.addBook = async (req, res) => {
       });
     }
 
+     // Create new book
     const book = new Book({
       title,
       author,
@@ -31,6 +40,7 @@ exports.addBook = async (req, res) => {
       createdBy
     });
 
+     // Save book to DB
     await book.save();
 
     return res.status(200).json({
@@ -48,6 +58,11 @@ exports.addBook = async (req, res) => {
   }
 };
 
+/**
+ * Retrieves books by ID with pagination
+ * Populates creator info.
+ * Supports pagination through query params.
+ */
 exports.getBook = async (req, res) => {
   try {
     const { id, page = 1, limit = 10 } = req.query;
@@ -68,14 +83,17 @@ exports.getBook = async (req, res) => {
         data: book
       });
     } else {
+       // Pagination calculation
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
+      // Get paginated books list
       const books = await Book.find()
         .populate('createdBy', '-password')
         .skip(skip)
         .limit(parseInt(limit))
         .sort({ createdAt: -1 });
 
+          // Total count for pagination
       const total = await Book.countDocuments();
 
       return res.status(200).json({
@@ -101,6 +119,10 @@ exports.getBook = async (req, res) => {
   }
 };
 
+/**
+ * Deletes a book by given ID.
+ * Validates ID exist and book exist.
+ */
 exports.deleteBook = async (req, res) => {
   try {
     const { id } = req.params;
@@ -138,6 +160,13 @@ exports.deleteBook = async (req, res) => {
   }
 };
 
+
+/**
+ * Updates a book by given ID.
+ * Validates ID and book existence.
+ * Checks for title uniqueness if updated.
+ * Updates provided fields.
+ */
 exports.updateBook = async (req, res) => {
   try {
     const { id } = req.params;
@@ -160,6 +189,7 @@ exports.updateBook = async (req, res) => {
       });
     }
 
+    // Check title uniqueness if title is changed
     if (title && title !== book.title) {
       const existing = await Book.findOne({ title });
       if (existing) {
@@ -172,7 +202,7 @@ exports.updateBook = async (req, res) => {
       book.title = title;
     }
 
-    
+    // Update fields if provided
     if (author) book.author = author;
     if (publishedYear) book.publishedYear = publishedYear;
     if (genre) book.genre = genre;
@@ -194,14 +224,20 @@ exports.updateBook = async (req, res) => {
   }
 };
 
+
+/**
+ * Searches for books by title with pagination
+ * Performs case-insensitive match on title
+ */
 exports.searchBook = async (req, res) => {
   try {
     const { search = '', page = 1, limit = 10 } = req.query;
 
+    // Create case-insensitive regex for search
     const regex = new RegExp(search, 'i');
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
+    // Find matching books
     const books = await Book.find({
       $or: [
         { title: regex },
@@ -211,7 +247,8 @@ exports.searchBook = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
-
+    
+    // Total count for pagination
     const total = await Book.countDocuments({
       $or: [
         { title: regex }
